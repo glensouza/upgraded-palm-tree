@@ -213,7 +213,7 @@ I reviewed the code before deciding how to move it. These are the issues that ma
 | 16 | Integration test project not in the solution; Selenium 3 with a pinned ChromeDriver 2.33. | Integration tests never ran. | **Fixed:** added to the solution and passing; Selenium 4 API. |
 | 17 | `Migrations/` contains only model snapshots, no migrations. The schema is created with `EnsureCreated`. | No safe way to evolve the schema in production. | **Recommended:** generate a baseline migration, run an **EF Core migration bundle** as a pipeline step, then drop `db_ddladmin` from the app identity. |
 | 18 | API `PUT /departments/{id}` ignores the client's row version. | Lost updates through the API. | **Recommended:** return an `ETag`, require `If-Match`, return `412 Precondition Failed` on mismatch. |
-| 19 | React SPA built on Create React App 3 (deprecated) and React 16, hosted inside an ASP.NET Core process. | Old toolchain, does not build on current Node.js without workarounds. | **Recommended:** move to Vite + React 19, host on **Static Web Apps** with the API as its backend. |
+| 19 | React SPA built on Create React App 3 (deprecated) and React 16, hosted inside an ASP.NET Core process. | Old toolchain: `npm run build` fails on current Node.js (`ERR_OSSL_EVP_UNSUPPORTED`). | **Recommended:** move to Vite + React 19, host on **Static Web Apps** with the API as its backend. |
 | 20 | Self-issued JWTs signed with a shared symmetric key; ASP.NET Identity with SMS 2FA through Twilio. | Key management and identity security owned by the app team. | **Recommended:** **Microsoft Entra External ID** for users, Entra ID app roles for the API, **Azure Communication Services** for email and SMS. |
 | 21 | Twilio SMS call is synchronous inside an async method. | Blocks a thread per SMS. | **Recommended:** switch to the async client (or Azure Communication Services). |
 
@@ -459,7 +459,13 @@ Two major upgrades are held back on purpose, with the reason recorded in the con
 
 Those alerts were dismissed as *not used* (reference code, never deployed), and the pull requests were closed. Dependabot only runs security updates for open alerts, so no further runs target `original/`. The configuration file alone could not prevent this, because `exclude-paths` applies only to version updates, not security updates ([dependabot-core #14408](https://github.com/dependabot/dependabot-core/issues/14408)).
 
-**The React SPA in `modified/` still has open alerts.** `modified/contoso-university/ContosoUniversity.Spa.React/ClientApp` is the original Create React App 3 front end, carried over unchanged. Its alerts are accurate. Replacing it with Vite and React 19 and hosting it on Static Web Apps is phase 2 (finding 19). It is not built or deployed by any pipeline in this repository.
+**The React SPA in `modified/` was handled the same way.** `modified/contoso-university/ContosoUniversity.Spa.React/ClientApp` is the original Create React App 3 front end, carried over unchanged. When `modified/` was pushed, Dependabot opened six security pull requests against it (one covering 25 packages and rewriting about 28,000 lines of the lock file). They were closed without merging, and its alerts were dismissed as *not used*, for three reasons:
+
+- No pipeline in this repository builds it, so a passing check on those pull requests would not show that an update works.
+- It does not build on current Node.js even before any update: `npm ci` succeeds on Node 24, but `npm run build` fails with `ERR_OSSL_EVP_UNSUPPORTED` (webpack 4, which Create React App 3 uses, relies on an OpenSSL hash that Node 17 and later removed).
+- The fix is the planned migration to Vite and React 19 on Static Web Apps (phase 2, finding 19), not individual package bumps.
+
+The folder remains in the repository so the migration can start from the original code. Until then, treat it as unmaintained.
 
 ### Compiler warnings in the Contoso build
 
