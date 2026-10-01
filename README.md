@@ -216,6 +216,7 @@ I reviewed the code before deciding how to move it. These are the issues that ma
 | 19 | React SPA built on Create React App 3 (deprecated) and React 16, hosted inside an ASP.NET Core process. | Old toolchain: `npm run build` fails on current Node.js (`ERR_OSSL_EVP_UNSUPPORTED`). | **Recommended:** move to Vite + React 19, host on **Static Web Apps** with the API as its backend. |
 | 20 | Self-issued JWTs signed with a shared symmetric key; ASP.NET Identity with SMS 2FA through Twilio. | Key management and identity security owned by the app team. | **Recommended:** **Microsoft Entra External ID** for users, Entra ID app roles for the API, **Azure Communication Services** for email and SMS. |
 | 21 | Twilio SMS call is synchronous inside an async method. | Blocks a thread per SMS. | **Recommended:** switch to the async client (or Azure Communication Services). |
+| 22 | Antiforgery (CSRF) tokens are applied action by action in the Web app, not by default, and the web app's `TokenController` and the API's `DepartmentsController` accept POSTs without them. Return URLs are echoed into the two-factor form. GitHub code scanning (CodeQL) reports three alerts for this. | Every browser form action that exists today validates a token, so nothing is exploitable now. But a future POST action that forgets the attribute would be unprotected. | **Recommended**, see [Code scanning alerts](#code-scanning-codeql-alerts). |
 
 I kept the existing `Startup` classes and repository pattern on purpose. The goal of the first phase is to get a supported, secure, observable application into Azure with the smallest safe diff. Moving to minimal hosting, enabling nullable reference types and the phase 2 items are follow-ups. Each is a contained change once the app is on a supported platform with a working pipeline.
 
@@ -466,6 +467,18 @@ Those alerts were dismissed as *not used* (reference code, never deployed), and 
 - The fix is the planned migration to Vite and React 19 on Static Web Apps (phase 2, finding 19), not individual package bumps.
 
 The folder remains in the repository so the migration can start from the original code. Until then, treat it as unmaintained.
+
+### Code scanning (CodeQL) alerts
+
+The Contoso pipeline runs CodeQL. It reports three alerts, all in code inherited from the upstream project. I left that code unmodified so the diff stays about the cloud migration, and dismissed the alerts in GitHub as *won't fix*, each with a comment. They are **upgrade items for a later phase**, not accepted risks.
+
+| Alert | Location | Assessment | Recommended upgrade |
+| --- | --- | --- | --- |
+| Missing CSRF token validation (`cs/web/missing-token-validation`) | `ContosoUniversity.Web/Controllers/TokenController.cs`, `Create` | Not exploitable: a JSON endpoint that issues a JWT and sets no cookie, so a forged request has no ambient credential to reuse. | Register `AutoValidateAntiforgeryToken` as a global filter in the Web app, so every cookie-authenticated POST is protected by default, and mark this endpoint `[IgnoreAntiforgeryToken]` with a comment. Better still, replace self-issued JWTs with Microsoft Entra ID (finding 20), which removes the endpoint. |
+| Missing CSRF token validation (`cs/web/missing-token-validation`) | `ContosoUniversity.Api/Controllers/DepartmentsController.cs`, `Create` | Not exploitable: the API accepts bearer tokens only, and browsers never attach a bearer token on their own. | Same global filter in the Web app. CodeQL only recognizes `[ValidateAntiForgeryToken]` or a global filter, not bearer authentication or `[ApiController]`, so this alert clears once the filter exists. |
+| Cross-site scripting (`cs/web/xss`) | `ContosoUniversity.Web/Views/Account/VerifyCode.cshtml`, line 10 | The value flows through an `asp-route-returnurl` tag helper, which HTML-encodes it, and `RedirectToLocal` only follows local URLs. | In the `VerifyCode` GET action, keep `returnUrl` only if `Url.IsLocalUrl(returnUrl)`, so nothing else is written back into the form. |
+
+All three changes are small. They are left for later because they alter behavior of the inherited Web app, which the current phase deliberately keeps equivalent to the original, and each deserves its own test and review.
 
 ### Compiler warnings in the Contoso build
 
