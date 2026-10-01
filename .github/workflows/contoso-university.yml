@@ -1,0 +1,117 @@
+name: Contoso University
+
+# pull request -> build, unit + integration tests, vulnerable package check, CodeQL
+# main         -> same, then dev -> (approval) -> prod using staging slots and swap
+# Deploy jobs are skipped until Azure is connected (see infrastructure/README.md).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'modified/contoso-university/**'
+      - '.github/workflows/contoso-university.yml'
+      - '.github/workflows/contoso-university-deploy.yml'
+  pull_request:
+    paths:
+      - 'modified/contoso-university/**'
+      - '.github/workflows/contoso-university.yml'
+      - '.github/workflows/contoso-university-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  security-events: write   # CodeQL results
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  SOLUTION_DIR: modified/contoso-university
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.SOLUTION_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: ${{ env.SOLUTION_DIR }}/global.json
+
+      - name: Restore
+        run: dotnet restore ContosoUniversity.sln
+
+      - name: Fail on vulnerable packages
+        run: |
+          dotnet list ContosoUniversity.sln package --vulnerable --include-transitive | tee vulnerable.txt
+          if grep -q -E "Critical|High" vulnerable.txt; then
+            echo "::error::High or critical vulnerabilities found in NuGet packages"
+            exit 1
+          fi
+
+      - name: Build
+        run: dotnet build ContosoUniversity.sln -c Release --no-restore
+
+      - name: Test
+        run: >
+          dotnet test ContosoUniversity.sln -c Release --no-build
+          --logger "trx;LogFilePrefix=results"
+          --collect:"XPlat Code Coverage"
+          --results-directory ${{ github.workspace }}/test-results
+
+      - name: Publish test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results
+
+      - name: Publish web and api
+        run: |
+          dotnet publish ContosoUniversity.Web/ContosoUniversity.Web.csproj -c Release --no-build -o ${{ github.workspace }}/publish/web
+          dotnet publish ContosoUniversity.Api/ContosoUniversity.Api.csproj -c Release --no-build -o ${{ github.workspace }}/publish/api
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: contoso-web
+          path: publish/web
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: contoso-api
+          path: publish/api
+          retention-days: 30
+
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: csharp
+          build-mode: none
+          source-root: ${{ env.SOLUTION_DIR }}
+
+      - uses: github/codeql-action/analyze@v3
+
+  deploy-dev:
+    name: Dev
+    needs: [build, codeql]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.AZURE_CLIENT_ID != ''
+    uses: ./.github/workflows/contoso-university-deploy.yml
+    with:
+      environment: dev
+
+  deploy-prod:
+    name: Prod
+    needs: deploy-dev
+    uses: ./.github/workflows/contoso-university-deploy.yml
+    with:
+      environment: prod

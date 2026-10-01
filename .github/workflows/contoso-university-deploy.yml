@@ -1,0 +1,96 @@
+name: Contoso University - deploy
+
+# Reusable deployment for one environment:
+#   1. Deploy the build artifacts to each app's "staging" slot.
+#   2. Swap staging into production. App Service only completes the swap after the new
+#      code answers 200 on /healthz/ready (WEBSITE_SWAP_WARMUP_PING_PATH), and the staging
+#      slot initializes the database on startup before that.
+#   3. Smoke test through Front Door. If it fails, swap back, so the previous version is
+#      live again within about a minute.
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}   # "prod" is protected with required reviewers
+      url: ${{ steps.outputs.outputs.webUrl }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: contoso-web
+          path: web
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: contoso-api
+          path: api
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Read infrastructure outputs
+        id: outputs
+        run: |
+          OUT=$(az deployment group show -g "${{ vars.CONTOSO_RESOURCE_GROUP }}" -n contoso-university --query properties.outputs -o json)
+          {
+            echo "webApp=$(jq -r .webAppName.value <<< "$OUT")"
+            echo "apiApp=$(jq -r .apiAppName.value <<< "$OUT")"
+            echo "webUrl=$(jq -r .webUrl.value <<< "$OUT")"
+            echo "apiUrl=$(jq -r .apiUrl.value <<< "$OUT")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Deploy web to staging slot
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ steps.outputs.outputs.webApp }}
+          slot-name: staging
+          package: web
+
+      - name: Deploy api to staging slot
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ steps.outputs.outputs.apiApp }}
+          slot-name: staging
+          package: api
+
+      - name: Swap staging into production
+        run: |
+          for app in "${{ steps.outputs.outputs.apiApp }}" "${{ steps.outputs.outputs.webApp }}"; do
+            az webapp deployment slot swap -g "${{ vars.CONTOSO_RESOURCE_GROUP }}" -n "$app" --slot staging --target-slot production
+          done
+
+      - name: Smoke test through Front Door
+        id: smoke
+        run: |
+          check() {
+            curl --fail --silent --show-error --retry 10 --retry-delay 15 --retry-all-errors \
+              -o /dev/null -w "%{http_code} $1\n" "$1"
+          }
+          check "${{ steps.outputs.outputs.webUrl }}/healthz/ready"
+          check "${{ steps.outputs.outputs.webUrl }}/"
+          check "${{ steps.outputs.outputs.webUrl }}/departments"
+          check "${{ steps.outputs.outputs.apiUrl }}/healthz/ready"
+          check "${{ steps.outputs.outputs.apiUrl }}/departments"
+
+      - name: Roll back (swap again)
+        if: failure() && steps.smoke.outcome == 'failure'
+        run: |
+          echo "::error::Smoke test failed, restoring the previous version"
+          for app in "${{ steps.outputs.outputs.webApp }}" "${{ steps.outputs.outputs.apiApp }}"; do
+            az webapp deployment slot swap -g "${{ vars.CONTOSO_RESOURCE_GROUP }}" -n "$app" --slot staging --target-slot production
+          done

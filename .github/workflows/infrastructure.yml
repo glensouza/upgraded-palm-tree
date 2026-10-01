@@ -1,0 +1,141 @@
+name: Infrastructure
+
+# Runs whenever anything under infrastructure/ changes.
+#  - Pull requests: lint + build every template, then a what-if preview against Azure.
+#  - main: deploy dev automatically, then prod after a reviewer approves the "prod" environment.
+# The Azure steps are skipped until the repository variables in infrastructure/README.md are set,
+# so the validation job runs (and passes) even before Azure has been connected.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infrastructure/**'
+      - '.github/workflows/infrastructure.yml'
+  pull_request:
+    paths:
+      - 'infrastructure/**'
+      - '.github/workflows/infrastructure.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write        # OIDC token for azure/login, no stored secrets
+
+concurrency:
+  group: infrastructure-${{ github.ref }}
+  cancel-in-progress: false   # never cancel a deployment half way
+
+jobs:
+  validate:
+    name: Lint and build Bicep
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        stack: [blog-starter, contoso-university]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Bicep
+        run: az bicep install && az bicep version
+
+      - name: Lint
+        run: az bicep lint --file infrastructure/${{ matrix.stack }}/main.bicep
+
+      - name: Build template and parameters
+        run: |
+          az bicep build --file infrastructure/${{ matrix.stack }}/main.bicep --stdout > /dev/null
+          az bicep build-params --file infrastructure/${{ matrix.stack }}/main.bicepparam --stdout > /dev/null
+
+  what-if:
+    name: What-if (${{ matrix.stack }})
+    needs: validate
+    if: github.event_name == 'pull_request' && vars.AZURE_CLIENT_ID != ''
+    runs-on: ubuntu-latest
+    environment: dev
+    strategy:
+      matrix:
+        stack: [blog-starter, contoso-university]
+    env:
+      ENVIRONMENT_NAME: dev
+      ALERT_EMAIL: ${{ vars.ALERT_EMAIL }}
+      SQL_ADMIN_GROUP_OBJECT_ID: ${{ vars.SQL_ADMIN_GROUP_OBJECT_ID }}
+      SQL_ADMIN_GROUP_NAME: ${{ vars.SQL_ADMIN_GROUP_NAME }}
+      RESOURCE_GROUP: ${{ matrix.stack == 'blog-starter' && vars.BLOG_RESOURCE_GROUP || vars.CONTOSO_RESOURCE_GROUP }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: What-if
+        run: |
+          az deployment group what-if             --resource-group "$RESOURCE_GROUP"             --name "${{ matrix.stack }}"             --template-file infrastructure/${{ matrix.stack }}/main.bicep             --parameters infrastructure/${{ matrix.stack }}/main.bicepparam             --no-pretty-print > whatif.txt
+          {
+            echo "### What-if: ${{ matrix.stack }} (dev)"
+            echo '```'
+            cat whatif.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-dev:
+    name: Deploy ${{ matrix.stack }} (dev)
+    needs: validate
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.AZURE_CLIENT_ID != ''
+    runs-on: ubuntu-latest
+    environment: dev
+    strategy:
+      matrix:
+        stack: [blog-starter, contoso-university]
+    env:
+      ENVIRONMENT_NAME: dev
+      ALERT_EMAIL: ${{ vars.ALERT_EMAIL }}
+      SQL_ADMIN_GROUP_OBJECT_ID: ${{ vars.SQL_ADMIN_GROUP_OBJECT_ID }}
+      SQL_ADMIN_GROUP_NAME: ${{ vars.SQL_ADMIN_GROUP_NAME }}
+      RESOURCE_GROUP: ${{ matrix.stack == 'blog-starter' && vars.BLOG_RESOURCE_GROUP || vars.CONTOSO_RESOURCE_GROUP }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy
+        run: |
+          az deployment group create             --resource-group "$RESOURCE_GROUP"             --name "${{ matrix.stack }}"             --template-file infrastructure/${{ matrix.stack }}/main.bicep             --parameters infrastructure/${{ matrix.stack }}/main.bicepparam             --query properties.outputs -o json
+
+  deploy-prod:
+    name: Deploy ${{ matrix.stack }} (prod)
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    environment: prod        # protected: required reviewers approve before this runs
+    strategy:
+      matrix:
+        stack: [blog-starter, contoso-university]
+    env:
+      ENVIRONMENT_NAME: prod
+      ALERT_EMAIL: ${{ vars.ALERT_EMAIL }}
+      SQL_ADMIN_GROUP_OBJECT_ID: ${{ vars.SQL_ADMIN_GROUP_OBJECT_ID }}
+      SQL_ADMIN_GROUP_NAME: ${{ vars.SQL_ADMIN_GROUP_NAME }}
+      RESOURCE_GROUP: ${{ matrix.stack == 'blog-starter' && vars.BLOG_RESOURCE_GROUP || vars.CONTOSO_RESOURCE_GROUP }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: What-if
+        run: |
+          az deployment group what-if             --resource-group "$RESOURCE_GROUP"             --template-file infrastructure/${{ matrix.stack }}/main.bicep             --parameters infrastructure/${{ matrix.stack }}/main.bicepparam
+
+      - name: Deploy
+        run: |
+          az deployment group create             --resource-group "$RESOURCE_GROUP"             --name "${{ matrix.stack }}"             --template-file infrastructure/${{ matrix.stack }}/main.bicep             --parameters infrastructure/${{ matrix.stack }}/main.bicepparam             --query properties.outputs -o json
