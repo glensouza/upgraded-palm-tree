@@ -1,8 +1,12 @@
 # Cloud Assessment: Deploying and Modernizing Two Applications on Azure
 
-**Candidate:** Glen Souza
-**Role:** Senior Cloud Operations Developer, AVEVA
-**Date:** October 2026
+[![Blog Starter](https://github.com/glensouza/upgraded-palm-tree/actions/workflows/blog-starter.yml/badge.svg?branch=main)](https://github.com/glensouza/upgraded-palm-tree/actions/workflows/blog-starter.yml?query=branch%3Amain) [![Contoso University](https://github.com/glensouza/upgraded-palm-tree/actions/workflows/contoso-university.yml/badge.svg?branch=main)](https://github.com/glensouza/upgraded-palm-tree/actions/workflows/contoso-university.yml?query=branch%3Amain) [![Infrastructure](https://github.com/glensouza/upgraded-palm-tree/actions/workflows/infrastructure.yml/badge.svg?branch=main)](https://github.com/glensouza/upgraded-palm-tree/actions/workflows/infrastructure.yml?query=branch%3Amain)
+
+*Status of the latest run on `main`. Each pipeline runs only when its own files change, so a badge shows the last run that was triggered. The Contoso badge also covers its reusable deploy workflow (`contoso-university-deploy.yml`), which runs only when called from it.*
+
+- **Candidate:** Glen Souza
+- **Role:** Senior Cloud Operations Developer, AVEVA
+- **Date:** October 2026
 
 ---
 
@@ -55,7 +59,7 @@ I chose **Azure** for both answers. The role is Azure-focused, and my background
 
 ## Question 1: How would you deploy the Blog Starter to Azure?
 
-### Short answer
+### Q1 Short answer
 
 Build it as a **fully static site** with `next build` (`output: "export"`) and host it on **Azure Static Web Apps (Standard)**. A GitHub Actions pipeline builds once, gives every pull request its own preview URL, deploys to dev automatically and to production after an approval. It signs in to Azure with OIDC, so no deployment secrets are stored anywhere. Application Insights checks the site from five regions and alerts the on-call channel if it goes down.
 
@@ -72,7 +76,7 @@ So the output of the build is a folder of HTML, CSS, JavaScript and images. **Th
 ### Options considered
 
 | Option | Verdict |
-|---|---|
+| --- | --- |
 | **Azure Static Web Apps (Standard)** | **Chosen.** Global edge distribution, free managed TLS, custom domains, built-in PR preview environments, security headers from a config file, SLA on Standard. About $9 per month. No servers to patch. |
 | Storage static website + Azure Front Door | Works well and adds WAF, but costs more (Front Door base fee) and has no preview environments. A good choice if the company standard requires Front Door in front of everything. |
 | App Service (Node.js) running `next start` | Needed only for server-side rendering, ISR or API routes. Adds an OS and runtime to patch and scale, with no benefit for this app. |
@@ -80,14 +84,14 @@ So the output of the build is a folder of HTML, CSS, JavaScript and images. **Th
 
 If the blog later needs server features, the same pipeline can target App Service or Container Apps. Only the deploy step changes.
 
-### Architecture
+### Blog Architecture
 
 ![Blog Starter on Azure](diagrams/blog-starter-azure.drawio.png)
 
 *The image contains the diagram source: open [`diagrams/blog-starter-azure.drawio.png`](diagrams/blog-starter-azure.drawio.png) in draw.io (desktop, VS Code extension or app.diagrams.net) to edit it.*
 
 | Component | Purpose |
-|---|---|
+| --- | --- |
 | Azure Static Web Apps (Standard) | Serves the exported site from Microsoft's global edge network. Managed TLS certificates, custom domain, HTTP/2, compression. |
 | `staticwebapp.config.json` | Security headers (HSTS, CSP, X-Frame-Options, Referrer-Policy, Permissions-Policy), long-lived cache headers for hashed assets, custom 404. |
 | Preview environments | Each pull request gets its own URL. Reviewers see the change running before it merges, and the environment is deleted when the PR closes. |
@@ -99,7 +103,7 @@ If the blog later needs server features, the same pipeline can target App Servic
 ### Code changes (in [`modified/blog-starter`](modified/blog-starter))
 
 | Change | Why |
-|---|---|
+| --- | --- |
 | `next.config.ts`: `output: "export"`, `trailingSlash: true`, `images.unoptimized: true`, `poweredByHeader: false` | Produces a static `out/` folder with no server dependency, and URLs that map cleanly to files on Static Web Apps. |
 | `package.json`: `next` pinned to `16.3.8` instead of `"latest"` | `"latest"` means two builds of the same commit can produce different code. Pinning plus `package-lock.json` and `npm ci` makes builds reproducible. Dependabot can raise version updates as reviewed PRs. |
 | Added `typecheck` script and `engines.node >= 22` | Lets the pipeline fail fast on type errors and documents the supported runtime. |
@@ -113,7 +117,7 @@ If the blog later needs server features, the same pipeline can target App Servic
 Measured on the static export:
 
 | Observation | Recommendation | Expected effect |
-|---|---|---|
+| --- | --- | --- |
 | Cover images are 2000×1000 JPEGs (44 to 118 KB) sent at full size to every device. Image optimization is off because a static export has no server to resize images. | Generate responsive AVIF/WebP variants at build time (for example with `sharp`, or the `next-image-export-optimizer` package) and serve them with `srcset` and `sizes`. | Typically 50 to 80% fewer image bytes on phones; faster LCP. |
 | About 630 KB of JavaScript (before compression) for a blog whose only interactive element is the theme switcher. | Run `@next/bundle-analyzer`, keep everything except the theme switcher as Server Components, and set a JavaScript size budget in CI. | Less script to download and parse; better Interaction to Next Paint on low-end devices. |
 | No automated performance check in the pipeline. | Add Lighthouse CI to `blog-starter.yml`, run against the PR preview URL, with budgets (for example LCP under 2.5 s, CLS under 0.1, performance score 90+). | Performance regressions are caught in review, not by readers. |
@@ -128,7 +132,7 @@ Already in place: fonts are self-hosted by `next/font` (no request to Google at 
 ### Build pipeline ([`.github/workflows/blog-starter.yml`](.github/workflows/blog-starter.yml))
 
 | Stage | Tools | Details |
-|---|---|---|
+| --- | --- | --- |
 | Trigger | GitHub Actions | Changes under `modified/blog-starter/` on a PR or on `main`. |
 | Install | Node.js 22, `npm ci` | Exact versions from the lock file; npm cache keyed on the lock file. |
 | Dependency audit | `npm audit --omit=dev --audit-level=high` | Fails the build on high or critical vulnerabilities in runtime dependencies. |
@@ -150,7 +154,7 @@ Rollback is re-running the last good workflow run, which redeploys its artifact 
 ### The AWS equivalent
 
 | Azure | AWS |
-|---|---|
+| --- | --- |
 | Static Web Apps | S3 bucket (private, Origin Access Control) + CloudFront, or AWS Amplify Hosting |
 | Managed certificate | AWS Certificate Manager (in `us-east-1` for CloudFront) |
 | Security headers config | CloudFront response headers policy |
@@ -166,7 +170,7 @@ The pipeline stays the same; only the login and deploy steps change (`aws-action
 
 ## Question 2: How would you adapt Contoso University to Azure?
 
-### Short answer
+### Q2 Short answer
 
 Upgrade it from **.NET Core 2.1** (end of support August 2021) to **.NET 10 LTS**, fix the defects that block it from running on modern .NET or at scale, and make it cloud-ready: secrets from Key Vault, passwordless SQL through a managed identity, shared Data Protection keys, health checks and OpenTelemetry. Host the web app and API on **Azure App Service (Linux)** behind **Azure Front Door Premium with WAF**. Keep the data tier (**Azure SQL**, **Key Vault**, **Storage**) on **private endpoints** inside a VNet.
 
@@ -190,7 +194,7 @@ If the team later splits the API into separate services or adds event-driven wor
 I reviewed the code before deciding how to move it. These are the issues that matter for running it in the cloud, ordered by impact. Every item marked **Fixed** has been changed in `modified/` and covered by the passing build and tests.
 
 | # | Finding | Impact | Status |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 1 | Targets **.NET Core 2.1 / ASP.NET Core 2.1 / EF Core 2.1**, all out of support since 2021. | No security patches for five years. Cannot run on current App Service runtimes. | **Fixed:** .NET 10 LTS, all packages current, central package management. |
 | 2 | `services.AddScoped(typeof(IRepository<>), typeof(Repository<,>))` registers an open generic with mismatched arity. | Current .NET rejects this when the container is built, so **the app crashes at startup** after any upgrade. | **Fixed:** removed. Nothing resolved it; repositories come from `UnitOfWork`. |
 | 3 | Student list sorting uses reflection on a **user-supplied property name** inside the LINQ query. | EF Core 2 quietly loaded the **whole Students table into memory** to sort it. EF Core 3+ throws, so the page returns HTTP 500. | **Fixed:** allow-listed, strongly typed sort translated to SQL `ORDER BY`. |
@@ -215,7 +219,7 @@ I reviewed the code before deciding how to move it. These are the issues that ma
 
 I kept the existing `Startup` classes and repository pattern on purpose. The goal of the first phase is to get a supported, secure, observable application into Azure with the smallest safe diff. Moving to minimal hosting, enabling nullable reference types and the phase 2 items are follow-ups. Each is a contained change once the app is on a supported platform with a working pipeline.
 
-### Architecture
+### Contoso University Azure Architecture
 
 ![Contoso University on Azure](diagrams/contoso-university-azure.drawio.png)
 
@@ -228,7 +232,7 @@ I kept the existing `Startup` classes and repository pattern on purpose. The goa
 **Identity:** one **user-assigned managed identity** is the apps' only credential. It signs in to Azure SQL (Entra-only authentication, no SQL logins), reads secrets and unwraps the Data Protection key in Key Vault (RBAC roles *Key Vault Secrets User* and *Key Vault Crypto User*), and reads and writes the key ring in Blob Storage (*Storage Blob Data Contributor*, scoped to one container). Shared-key access on the storage account is disabled.
 
 | Component | Dev | Prod |
-|---|---|---|
+| --- | --- | --- |
 | App Service plan (Linux) | P0v3, 1 instance | P1v3, zone redundant, autoscale 2 to 6 on CPU |
 | Web app, API app | .NET 10, `staging` slot each | same |
 | Azure SQL Database | General Purpose serverless, auto-pause, local backups | General Purpose provisioned, zone redundant, geo-redundant backups |
@@ -249,7 +253,7 @@ I kept the existing `Startup` classes and repository pattern on purpose. The goa
 ### Build pipeline ([`.github/workflows/contoso-university.yml`](.github/workflows/contoso-university.yml))
 
 | Stage | Tools | Details |
-|---|---|---|
+| --- | --- | --- |
 | Trigger | GitHub Actions | Changes under `modified/contoso-university/` on a PR or on `main`. |
 | Restore | .NET 10 SDK (`global.json`), NuGet central package management | One `Directory.Packages.props` holds every version. |
 | Vulnerability gate | `dotnet list package --vulnerable --include-transitive` | Fails on high or critical advisories, including transitive packages. NuGet audit also runs during restore. |
@@ -265,23 +269,23 @@ No secret is stored in GitHub. Every Azure call uses OIDC federation scoped to t
 
 ### Operations, security and compliance
 
-**Monitoring and alerting**
+#### Monitoring and alerting
 
 - Application Insights through OpenTelemetry: requests, dependencies (SQL, Key Vault), exceptions, traces and live metrics.
 - Availability test every 5 minutes from 5 regions against `/healthz/ready` through Front Door, so it covers Front Door, App Service and SQL in one check. TLS expiry is checked too.
 - Metric alerts on HTTP 5xx and response time for each app. All alerts route to one action group (email, extendable to Teams, PagerDuty or ServiceNow).
 - App Service HTTP, console, application and platform logs, Front Door access logs, health probe logs and WAF logs all go to Log Analytics for incident investigation.
 
-**Resilience**
+#### Resilience
 
 - Production is zone redundant at the App Service plan, SQL and Storage layers. App Service health checks remove unhealthy instances. EF Core retries transient SQL faults.
 - SQL point-in-time restore (7 days by default) with geo-redundant backups in production. Key Vault soft delete and purge protection.
 - Target RPO and RTO for the zone-redundant design are measured in minutes for a zone failure. For a full region failure, the next step is SQL failover groups and a second App Service region behind the same Front Door profile.
 
-**Security** (how this maps to an ISO 27001 / 27017 style control set)
+#### Security (how this maps to an ISO 27001 / 27017 style control set)
 
 | Control area | Implementation |
-|---|---|
+| --- | --- |
 | Access control | Entra ID only. Managed identity for the app, Entra group for SQL admins, least-privilege RBAC, no shared keys or SQL logins. |
 | Cryptography | TLS 1.2+ everywhere, HSTS, Data Protection keys encrypted with a Key Vault key, TDE on SQL by default. |
 | Network security | WAF in front, apps reachable only from Front Door, data services private-only. |
@@ -291,10 +295,10 @@ No secret is stored in GitHub. Every Azure call uses OIDC federation scoped to t
 
 **Cost** (approximate, US regions): dev about $450 per month, mostly the Front Door Premium base fee. Production starts around $1,000 per month depending on SQL size and instance count. Resources are tagged by application and environment for cost reporting. [`infrastructure/README.md`](infrastructure/README.md#12-cost-guide) lists ways to cut dev cost and how to set budgets.
 
-### The AWS equivalent
+### Contoso University AWS equivalent
 
 | Azure | AWS |
-|---|---|
+| --- | --- |
 | App Service (Linux, .NET 10) with slots | Elastic Beanstalk (.NET on Linux) with blue/green, or ECS Fargate behind an ALB |
 | Front Door Premium + WAF | CloudFront + AWS WAF (managed rule groups, Bot Control), ALB restricted to the CloudFront prefix list |
 | Azure SQL (Entra-only auth) | Amazon RDS for SQL Server (Multi-AZ), with Windows authentication through AWS Managed Microsoft AD, or a Secrets Manager credential with automatic rotation |
@@ -317,7 +321,7 @@ Both modified applications run on a workstation without any Azure resources. Eve
 ### Prerequisites
 
 | Tool | Needed for | Install (Windows) |
-|---|---|---|
+| --- | --- | --- |
 | Node.js 22 or newer | Blog Starter | `winget install OpenJS.NodeJS.LTS` |
 | .NET 10 SDK | Contoso University | `winget install Microsoft.DotNet.SDK.10` |
 | SQL Server LocalDB | Contoso University on Windows | Included with Visual Studio (ASP.NET workload), or choose *LocalDB* in the SQL Server Express installer |
@@ -361,7 +365,7 @@ dotnet run --project ContosoUniversity.Api    # http://localhost:6188  (Swagger 
 In Development, the first start creates the `ContosoUniversity2017` database in LocalDB and loads sample students, instructors, courses and departments. It also creates an administrator account from `ContosoUniversity.Web/appsettings.Development.json` (`admin@example.com`). Sign in as that account to see the admin-only pages, such as deleting a department.
 
 | URL | What it shows |
-|---|---|
+| --- | --- |
 | <https://localhost:20650> | Web app: students, courses, instructors, departments |
 | <https://localhost:20650/healthz/ready> | Readiness check, including the database |
 | <http://localhost:6188/swagger> | API documentation, with "Try it out" |
@@ -411,7 +415,7 @@ sqlcmd -S "(localdb)\MSSQLLocalDB" -Q "DROP DATABASE ContosoUniversity2017"
 ## How the work was verified
 
 | Check | Result |
-|---|---|
+| --- | --- |
 | `dotnet build -c Release` (Contoso, .NET 10) | Succeeds, no errors |
 | `dotnet test` | **158 passed**, 0 failed (6 skipped by the original author: Selenium/browser and local-only tests) |
 | `dotnet list package --vulnerable --include-transitive` | No vulnerable packages in any project |
@@ -436,7 +440,7 @@ git diff --no-index original/contoso-university modified/contoso-university
 [`.github/dependabot.yml`](.github/dependabot.yml) checks every Monday for new versions of what this repository maintains, and groups them into one pull request per area:
 
 | Area | Directory | Grouping |
-|---|---|---|
+| --- | --- | --- |
 | GitHub Actions | `.github/workflows` | All action updates together |
 | Blog Starter (npm) | `modified/blog-starter` | Minor and patch updates together; major versions as separate PRs for review |
 | Contoso University (NuGet) | `modified/contoso-university` | Minor and patch updates together; major versions as separate PRs for review |
@@ -462,7 +466,7 @@ Those alerts were dismissed as *not used* (reference code, never deployed), and 
 The Contoso pipeline builds with no errors, but it reports eight warnings, all in **test code inherited from the original project**. They do not affect the application or the test results. I left them as they are to keep the diff from the original focused on the cloud migration, and they are next in the cleanup backlog:
 
 | Warning | Location | What it means | Fix |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `ASPDEPR004`, `ASPDEPR008` | `ContosoUniversity.Test/BaseIntegrationTest.cs` | The shared test helper builds its test server with `WebHostBuilder` and `TestServer(IWebHostBuilder)`, both obsolete since .NET 10. | Move the helper to `WebApplicationFactory<TStartup>`, as `ContosoUniversity.Web.IntegrationTests` already does. |
 | `EF1001`, `xUnit2007` (2 of each) | `ContosoUniversity.Data.Tests/RepositoryTests.cs` | Two tests assert on EF Core internal types (`EntityQueryable<T>`, `InternalDbSet<T>`), which can change in any EF Core release. | Assert on public behavior instead, for example `Assert.IsAssignableFrom<IQueryable<Department>>`. |
 | `xUnit2009` | `ContosoUniversity.Api.Tests/ApiIntegrationTests.cs` | Uses `Assert.True(content.Contains(...))`. | `Assert.Contains("English", content)` gives a clearer failure message. |

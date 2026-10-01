@@ -23,7 +23,7 @@ infrastructure/
 The pipeline for this folder is [`.github/workflows/infrastructure.yml`](../.github/workflows/infrastructure.yml). It runs whenever a file under `infrastructure/` changes:
 
 | Trigger | What happens |
-|---|---|
+| --- | --- |
 | Pull request | `bicep lint` and `bicep build` for both stacks, then a `what-if` against **dev** written to the job summary |
 | Push to `main` | Lint and build, deploy **dev**, then wait for an approval and deploy **prod** (with a what-if first) |
 | Manual (`workflow_dispatch`) | Same as a push to `main` |
@@ -53,7 +53,7 @@ The Azure jobs are skipped until the repository variables in [step 5](#5-configu
 ## 1. Install the tools
 
 | Tool | Why |
-|---|---|
+| --- | --- |
 | Azure CLI 2.60 or newer | Everything in this guide, and what the pipelines use |
 | Bicep CLI | Installed and updated by the Azure CLI |
 | GitHub CLI (optional) | Set repository variables and environments from the terminal |
@@ -133,7 +133,7 @@ done
 One resource group per application per environment keeps access control, cost reporting and clean-up simple. In a real landing zone, dev and prod would also be in **separate subscriptions**; the templates work the same way.
 
 | Resource group | Used by |
-|---|---|
+| --- | --- |
 | `rg-blog-dev`, `rg-blog-prod` | Blog Starter |
 | `rg-contoso-dev`, `rg-contoso-prod` | Contoso University |
 
@@ -180,7 +180,7 @@ Every job that signs in to Azure runs in a GitHub environment (`dev` or `prod`),
 **Portal:** in the app registration, **Certificates & secrets** > **Federated credentials** > **Add credential**:
 
 | Field | Value |
-|---|---|
+| --- | --- |
 | Federated credential scenario | GitHub Actions deploying Azure resources |
 | Organization | `<owner>` |
 | Repository | `upgraded-palm-tree` |
@@ -242,7 +242,7 @@ done
 These are identifiers, not secrets, so they are stored as **variables** (Settings > Secrets and variables > Actions > *Variables* tab).
 
 | Variable | Level | Example |
-|---|---|---|
+| --- | --- | --- |
 | `AZURE_CLIENT_ID` | Repository | from step 4a |
 | `AZURE_TENANT_ID` | Repository | from step 4a |
 | `AZURE_SUBSCRIPTION_ID` | Repository | from step 4a |
@@ -382,7 +382,7 @@ az sql server update -g rg-contoso-dev -n $SQL_SERVER --enable-public-network fa
 The apps load configuration from Key Vault at startup through their managed identity. Secret names use `--` where the .NET configuration key uses `:`.
 
 | Secret name | Purpose | Required |
-|---|---|---|
+| --- | --- | --- |
 | `Administrator--Password` | Password for the seeded admin account (`admin@contoso.edu` by default) | Yes |
 | `Authentication--Tokens--Key` | Signing key for the JWTs issued by `/api/token` (32+ random characters) | Yes, for the API |
 | `Authentication--Tokens--Issuer` | JWT issuer, e.g. the web `webUrl` output | Yes, for the API |
@@ -431,7 +431,7 @@ for app in $(az webapp list -g rg-contoso-dev --query "[].name" -o tsv); do az w
 Once the infrastructure exists, the application pipelines take over. Each one builds once and promotes the same artifact from dev to prod.
 
 | Workflow | Trigger | Target |
-|---|---|---|
+| --- | --- | --- |
 | [`blog-starter.yml`](../.github/workflows/blog-starter.yml) | changes in `modified/blog-starter/` | Static Web App: PR preview environments, then dev, then prod |
 | [`contoso-university.yml`](../.github/workflows/contoso-university.yml) | changes in `modified/contoso-university/` | App Service `staging` slot, swap, smoke test, auto rollback |
 
@@ -458,7 +458,7 @@ az webapp deployment slot swap -g rg-contoso-dev -n $WEB_APP --slot staging --ta
 ## 11. Day-2 operations
 
 | Task | Portal | CLI |
-|---|---|---|
+| --- | --- | --- |
 | Roll back a Contoso release | App Service > **Deployment slots** > **Swap** (staging and production) | `az webapp deployment slot swap -g <rg> -n <app> --slot staging --target-slot production` |
 | Roll back the blog | Re-run the last good **Blog Starter** workflow run | `gh run rerun <run-id>` |
 | Live logs | App Service > **Log stream** | `az webapp log tail -g <rg> -n <app>` |
@@ -476,7 +476,7 @@ az webapp deployment slot swap -g rg-contoso-dev -n $WEB_APP --slot staging --ta
 Approximate list prices in US regions at the time of writing; confirm with the [Azure pricing calculator](https://azure.microsoft.com/pricing/calculator/) for your region and agreement.
 
 | Stack | Dev | Prod | Biggest cost driver |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Blog Starter | ~$10/month | ~$10/month | Static Web Apps Standard plan (flat fee) |
 | Contoso University | ~$450/month | ~$900+/month | Front Door Premium base fee (~$330), App Service plan, SQL tier |
 
