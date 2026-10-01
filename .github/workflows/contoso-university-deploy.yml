@@ -27,17 +27,17 @@ jobs:
       name: ${{ inputs.environment }}   # "prod" is protected with required reviewers
       url: ${{ steps.outputs.outputs.webUrl }}
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: contoso-web
           path: web
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: contoso-api
           path: api
 
-      - uses: azure/login@v2
+      - uses: azure/login@v3
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}

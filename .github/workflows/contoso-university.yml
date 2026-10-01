@@ -36,9 +36,9 @@ jobs:
       run:
         working-directory: ${{ env.SOLUTION_DIR }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: ${{ env.SOLUTION_DIR }}/global.json
 
@@ -65,7 +65,7 @@ jobs:
 
       - name: Publish test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: test-results
@@ -75,13 +75,13 @@ jobs:
           dotnet publish ContosoUniversity.Web/ContosoUniversity.Web.csproj -c Release --no-build -o ${{ github.workspace }}/publish/web
           dotnet publish ContosoUniversity.Api/ContosoUniversity.Api.csproj -c Release --no-build -o ${{ github.workspace }}/publish/api
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: contoso-web
           path: publish/web
           retention-days: 30
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: contoso-api
           path: publish/api
@@ -91,15 +91,15 @@ jobs:
     name: CodeQL
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: github/codeql-action/init@v3
+      - uses: github/codeql-action/init@v4
         with:
           languages: csharp
           build-mode: none
           source-root: ${{ env.SOLUTION_DIR }}
 
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@v4
 
   deploy-dev:
     name: Dev
