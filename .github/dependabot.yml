@@ -1,0 +1,44 @@
+# Weekly version updates for the code this repository maintains.
+#
+# Only modified/ and the workflows are listed. original/ is an unmodified
+# reference copy of the upstream projects and is never built or deployed,
+# so Dependabot does not manage it. See "Dependabot and known warnings" in
+# the root README.md.
+
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: npm
+    directory: /modified/blog-starter
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      blog-starter:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: nuget
+    directory: /modified/contoso-university
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      contoso-university:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    commit-message:
+      prefix: deps

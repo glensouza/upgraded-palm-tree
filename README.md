@@ -43,6 +43,7 @@ I chose **Azure** for both answers. The role is Azure-focused, and my background
 │   ├── README.md                      setup guide: Portal and az CLI, including installing the CLI
 │   ├── blog-starter/                  Bicep for the blog
 │   └── contoso-university/            Bicep for Contoso (modules for network, data, web, Front Door, monitoring)
+├── .github/dependabot.yml           weekly dependency updates for modified/ and the workflows
 └── .github/workflows/
     ├── infrastructure.yml             runs when infrastructure/ changes: lint, what-if, deploy
     ├── blog-starter.yml               build, audit, PR previews, dev, prod
@@ -425,6 +426,44 @@ To see every change I made to the applications:
 git diff --no-index original/blog-starter       modified/blog-starter
 git diff --no-index original/contoso-university modified/contoso-university
 ```
+
+---
+
+## Dependabot and known warnings
+
+### Dependabot
+
+[`.github/dependabot.yml`](.github/dependabot.yml) checks every Monday for new versions of what this repository maintains, and groups them into one pull request per area:
+
+| Area | Directory | Grouping |
+|---|---|---|
+| GitHub Actions | `.github/workflows` | All action updates together |
+| Blog Starter (npm) | `modified/blog-starter` | Minor and patch updates together; major versions as separate PRs for review |
+| Contoso University (NuGet) | `modified/contoso-university` | Minor and patch updates together; major versions as separate PRs for review |
+
+`original/` is deliberately left out. It is an unmodified copy of the upstream projects, kept only as the "before" for comparison, and it is never built or deployed.
+
+**Why the Actions history shows failed Dependabot runs:** when the repository was first pushed, GitHub's dependency scanning raised security alerts for the 2018-era packages in `original/` and started Dependabot security updates for them.
+
+- **NuGet runs failed:** Dependabot's NuGet updater could not load the original .NET Core 2.1 projects with current .NET tooling. That is the same end-of-life problem described in finding 1 above.
+- **npm runs opened pull requests:** they targeted the original React app.
+
+Those alerts were dismissed as *not used* (reference code, never deployed), and the pull requests were closed. Dependabot only runs security updates for open alerts, so no further runs target `original/`. The configuration file alone could not prevent this, because `exclude-paths` applies only to version updates, not security updates ([dependabot-core #14408](https://github.com/dependabot/dependabot-core/issues/14408)).
+
+**The React SPA in `modified/` still has open alerts.** `modified/contoso-university/ContosoUniversity.Spa.React/ClientApp` is the original Create React App 3 front end, carried over unchanged. Its alerts are accurate. Replacing it with Vite and React 19 and hosting it on Static Web Apps is phase 2 (finding 19). It is not built or deployed by any pipeline in this repository.
+
+### Compiler warnings in the Contoso build
+
+The Contoso pipeline builds with no errors, but it reports eight warnings, all in **test code inherited from the original project**. They do not affect the application or the test results. I left them as they are to keep the diff from the original focused on the cloud migration, and they are next in the cleanup backlog:
+
+| Warning | Location | What it means | Fix |
+|---|---|---|---|
+| `ASPDEPR004`, `ASPDEPR008` | `ContosoUniversity.Test/BaseIntegrationTest.cs` | The shared test helper builds its test server with `WebHostBuilder` and `TestServer(IWebHostBuilder)`, both obsolete since .NET 10. | Move the helper to `WebApplicationFactory<TStartup>`, as `ContosoUniversity.Web.IntegrationTests` already does. |
+| `EF1001`, `xUnit2007` (2 of each) | `ContosoUniversity.Data.Tests/RepositoryTests.cs` | Two tests assert on EF Core internal types (`EntityQueryable<T>`, `InternalDbSet<T>`), which can change in any EF Core release. | Assert on public behavior instead, for example `Assert.IsAssignableFrom<IQueryable<Department>>`. |
+| `xUnit2009` | `ContosoUniversity.Api.Tests/ApiIntegrationTests.cs` | Uses `Assert.True(content.Contains(...))`. | `Assert.Contains("English", content)` gives a clearer failure message. |
+| `xUnit2013` | `ContosoUniversity.Web.Tests/Controllers/AccountControllerTests.cs` | Uses `Assert.Equal(1, collection.Count)`. | `Assert.Single(collection)`. |
+
+The runs also show a GitHub notice that `ubuntu-latest` moves to Ubuntu 26 from October 19, 2026. It is informational; the workflows only use cross-platform tooling (.NET, Node.js, Azure CLI).
 
 ---
 
