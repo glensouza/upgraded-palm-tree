@@ -43,7 +43,7 @@ I chose **Azure** for both answers. The role is Azure-focused, and my background
 │   ├── README.md                      setup guide: Portal and az CLI, including installing the CLI
 │   ├── blog-starter/                  Bicep for the blog
 │   └── contoso-university/            Bicep for Contoso (modules for network, data, web, Front Door, monitoring)
-├── .github/dependabot.yml           weekly dependency updates for modified/ and the workflows
+├── .github/dependabot.yml             weekly dependency updates for modified/ and the workflows
 └── .github/workflows/
     ├── infrastructure.yml             runs when infrastructure/ changes: lint, what-if, deploy
     ├── blog-starter.yml               build, audit, PR previews, dev, prod
@@ -440,6 +440,11 @@ git diff --no-index original/contoso-university modified/contoso-university
 | GitHub Actions | `.github/workflows` | All action updates together |
 | Blog Starter (npm) | `modified/blog-starter` | Minor and patch updates together; major versions as separate PRs for review |
 | Contoso University (NuGet) | `modified/contoso-university` | Minor and patch updates together; major versions as separate PRs for review |
+
+Two major upgrades are held back on purpose, with the reason recorded in the config:
+
+- **Tailwind CSS 4** changes the PostCSS plugin and moves configuration into CSS. Dependabot's first PR for it failed the blog build, which is exactly what the PR checks are for. The migration is a backlog item.
+- **`@types/node` majors** must match the Node.js runtime the blog builds on (22). They move together with `node-version` in the workflow and `engines` in `package.json`.
 
 `original/` is deliberately left out. It is an unmodified copy of the upstream projects, kept only as the "before" for comparison, and it is never built or deployed.
 

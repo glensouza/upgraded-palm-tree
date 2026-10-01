@@ -28,6 +28,15 @@ updates:
       blog-starter:
         patterns: ["*"]
         update-types: [minor, patch]
+    ignore:
+      # Tailwind CSS 4 is a migration (new PostCSS plugin and CSS-first config),
+      # tracked as a backlog item rather than an automatic bump.
+      - dependency-name: tailwindcss
+        update-types: ["version-update:semver-major"]
+      # Type definitions must match the Node.js runtime (22). Raise this together
+      # with node-version in blog-starter.yml and engines in package.json.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: deps
 
