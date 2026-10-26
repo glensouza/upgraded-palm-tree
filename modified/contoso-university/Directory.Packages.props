@@ -2,8 +2,8 @@
   <!-- Central Package Management: every package version lives here, in one place. -->
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-    <AspNetCoreVersion>10.0.12</AspNetCoreVersion>
-    <EfCoreVersion>10.0.12</EfCoreVersion>
+    <AspNetCoreVersion>10.0.14</AspNetCoreVersion>
+    <EfCoreVersion>10.0.14</EfCoreVersion>
   </PropertyGroup>
   <ItemGroup Label="ASP.NET Core">
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="$(AspNetCoreVersion)" />
@@ -12,7 +12,7 @@
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="$(AspNetCoreVersion)" />
     <PackageVersion Include="Microsoft.AspNetCore.SpaServices.Extensions" Version="$(AspNetCoreVersion)" />
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="$(AspNetCoreVersion)" />
-    <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.2.3" />
+    <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.3.1" />
   </ItemGroup>
   <ItemGroup Label="Data">
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="$(EfCoreVersion)" />
@@ -24,22 +24,22 @@
   <ItemGroup Label="Azure">
     <PackageVersion Include="Azure.Identity" Version="1.21.0" />
     <PackageVersion Include="Azure.Extensions.AspNetCore.Configuration.Secrets" Version="1.5.2" />
-    <PackageVersion Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" Version="1.5.4" />
-    <PackageVersion Include="Azure.Extensions.AspNetCore.DataProtection.Keys" Version="1.6.4" />
+    <PackageVersion Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" Version="1.5.5" />
+    <PackageVersion Include="Azure.Extensions.AspNetCore.DataProtection.Keys" Version="1.6.5" />
     <PackageVersion Include="Azure.Monitor.OpenTelemetry.AspNetCore" Version="1.6.0" />
   </ItemGroup>
   <ItemGroup Label="Third party">
     <PackageVersion Include="SendGrid" Version="9.29.3" />
-    <PackageVersion Include="Twilio" Version="8.0.2" />
+    <PackageVersion Include="Twilio" Version="8.1.0" />
   </ItemGroup>
   <ItemGroup Label="Testing">
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="$(AspNetCoreVersion)" />
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="$(AspNetCoreVersion)" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <PackageVersion Include="Moq" Version="4.21.0" />
-    <PackageVersion Include="Selenium.WebDriver" Version="4.50.0" />
-    <PackageVersion Include="Selenium.Support" Version="4.50.0" />
+    <PackageVersion Include="Selenium.WebDriver" Version="4.51.0" />
+    <PackageVersion Include="Selenium.Support" Version="4.51.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
   </ItemGroup>
 </Project>
